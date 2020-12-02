@@ -1,6 +1,7 @@
 #lang racket
 (require threading
-         racket/file)
+         racket/file
+         srfi/13) ;; string utilities
 
 (module+ test
   (require rackunit))
@@ -19,21 +20,39 @@
                 '(1 3 "a" "abcde")))
 
 
-(define (valid-password? lower upper substring password)
+(define (old-valid-password? lower upper substring password)
   (~>> password
        (regexp-match* substring)
        length
        (<= lower _ upper)))
- 
 
 (module+ test
-  (check-true (valid-password? 1 3 "a" "abcde"))
-  (check-false (valid-password? 1 3 "b" "cdefg"))
-  (check-true (valid-password? 2 9 "c" "ccccccccc")))
+  (check-true (old-valid-password? 1 3 "a" "abcde"))
+  (check-false (old-valid-password? 1 3 "b" "cdefg"))
+  (check-true (old-valid-password? 2 9 "c" "ccccccccc")))
 
-(~>> "./aoc-day02.input"
+
+(define (new-valid-password? lower upper substring password)
+  (define (at-pos? pos text)
+    (~>> (sub1 pos)
+         (string-drop password)
+         (string-prefix? text)))
+  (xor (at-pos? lower substring)
+       (at-pos? upper substring)))
+
+(module+ test
+  (check-true (new-valid-password? 1 3 "a" "abcde"))
+  (check-false (new-valid-password? 1 3 "b" "cdefg"))
+  (check-false (new-valid-password? 2 9 "c" "ccccccccc")))
+
+
+(define (answer strategy)
+  (~>> "./aoc-day02.input"
        file->lines
        (map (λ~>> parse-line
-                  (apply valid-password?)))
+                  (apply strategy)))
        (filter identity)
-       length)
+       length))
+
+(printf "Day 02 - star 1: ~a\n" (answer old-valid-password?))
+(printf "Day 02 - star 2: ~a\n" (answer new-valid-password?))
