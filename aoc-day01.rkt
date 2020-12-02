@@ -1,53 +1,60 @@
 #lang racket
 (require threading
-         data/collection
-         racket/file)
+         racket/file
+         math/base)
 
 (module+ test
   (require rackunit)
-
-  (define test-sequence #(1721 979 366 299 675 1456)))
-
-
-(define sequence->vector
-  (λ~> sequence->list
-       list->vector
-       vector->immutable-vector))
+  (define test-sequence '(1721 979 366 299 675 1456)))
 
 
-(define (two-sum target seq)
-  (define (at pos) (nth seq pos))
-  (for*/first ([i (in-range (sub1 (length seq)))]
-               [j (in-range (add1 i) (length seq))]
-               #:when (equal? target (+ (at i) (at j))))
-    (list (at i) (at j))))
+;; Helper methods
+(define ((sum-equal? target) lst) (equal? target (sum lst)))
 
 (module+ test
-  (check-equal? '(1721 299) (two-sum 2020 test-sequence)))
+  (check-false ((sum-equal? 2020) '()))
+  (check-false ((sum-equal? 2020) '(2020 19)))
+  (check-true ((sum-equal? 2020) '(2000 20))))
 
 
-(define (three-sum target seq)
-  (define (at pos) (nth seq pos))
-  (for*/first ([i (in-range (sub1 (length seq)))]
-               [j (in-range (add1 i) (sub1 (length seq)))]
-               [z (in-range (add1 j) (length seq))]
-               #:when (equal? target (+ (at i) (at j) (at z))))
-    (list (at i) (at j) (at z))))
-
-(module+ test
-  (check-equal? '(979 366 675) (three-sum 2020 test-sequence)))
+(define prod (curry apply *))
 
 
-(define file->number-vector
+(define file->number-list
   (λ~>> file->lines 
-        (map string->number)
-        sequence->vector))
+        (map string->number)))
+
 
 (define (answer strategy)
   (~>> "./aoc-day01.input"
-       file->number-vector
-       (strategy 2020)
-       (apply *)))
+       file->number-list
+       strategy
+       prod))
 
-(printf "Day 01 - star 1: ~a\n" (answer two-sum))
-(printf "Day 01 - star 2: ~a\n" (answer three-sum))
+
+;; Here's the "meat" of the algorithm.
+;; Going recursive makes easy to specify the number
+;; of elements that satifies the condition we want,
+;; like 2 or 3 numbers.
+(define (find-combination n-elements success? seq)
+  (let loop ([n-elements n-elements]
+             [seq seq]
+             [rslt '()])
+    (match (list n-elements seq)
+      [(list 0 _) #:when (success? rslt) (reverse rslt)]
+      [(list 0 _) #f]
+      [(list _ '()) #f]
+      [(list n (list x xs ...))
+       (or (loop (sub1 n) xs (cons x rslt))
+           (loop n xs rslt))])))
+
+(module+ test
+  (check-false (find-combination 2 (sum-equal? 10) test-sequence))
+  (check-equal? '(299) (find-combination 1 (sum-equal? 299) test-sequence))
+  (check-equal? '(1721 299) (find-combination 2 (sum-equal? 2020) test-sequence))
+  (check-equal? '(366 675) (find-combination 2 (sum-equal? (+ 366 675)) test-sequence))
+  (check-equal? '(979 366 675) (find-combination 3 (sum-equal? 2020) test-sequence)))
+
+;; The actual answers
+(printf "Day 01 - star 1: ~a\n" (answer (curry find-combination 2 (sum-equal? 2020))))
+(printf "Day 01 - star 2: ~a\n" (answer (curry find-combination 3 (sum-equal? 2020))))
