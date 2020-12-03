@@ -120,13 +120,10 @@
   (define num-rows (matrix-num-rows test-field))
   (define num-cols (matrix-num-cols test-field))
   (define (at-pos r c) (matrix-ref test-field r (remainder c num-cols)))
-  (let loop ([r 0]
-             [c 0]
-             [rslt empty])
-    (cond [(>= r num-rows) (sum rslt)]
-          [else (loop (+ r by-row)
-                      (+ c by-col)
-                      (cons (at-pos r c) rslt))])))
+  (for/fold ([acc 0])
+            ([r (in-range 0 num-rows by-row)]
+             [c (in-range 0 +inf.0 by-col)])
+    (+ acc (at-pos r c))))
 
 (module+ test
   (check-equal? (tree-hits 1 3 test-field) 7))
