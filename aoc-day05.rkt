@@ -1,19 +1,27 @@
 #lang racket
 (require threading
          racket/file
-         racket/struct
-         math/base)
+         srfi/13) ;; string utilities
 
 (module+ test
   (require rackunit))
 
 
+(define/match (ticket->binary letter)
+  [(#\F) #\0]
+  [(#\B) #\1]
+  [(#\L) #\0]
+  [(#\R) #\1])
+
+(define (ticket->number ticket)
+  (~>> ticket
+       (string-map ticket->binary)
+       (string->number _ 2)))
+
+
 (define (row ticket)
-  (~> ticket
-      (substring 0 7)
-      (string-replace "F" "0")
-      (string-replace "B" "1")
-      (string->number 2)))
+  (~> (ticket->number ticket)
+      (arithmetic-shift -3)))
 
 (module+ test
   (require rackunit)
@@ -24,11 +32,8 @@
 
 
 (define (col ticket)
-  (~> ticket
-      (substring 7)
-      (string-replace "L" "0")
-      (string-replace "R" "1")
-      (string->number 2)))
+  (~> (ticket->number ticket)
+      (bitwise-and #b111)))
 
 (module+ test
   (require rackunit)
@@ -50,10 +55,21 @@
   (check-equal? (seat-id "BBFFBBFRLL") 820))
 
 
-(~>> "./aoc-day05.input"
-     file->list
-     (map symbol->string)
-     (map seat-id)
-     (apply max))
+(define sorted-seat-ids
+  (~>> "./aoc-day05.input"
+       file->list
+       (map symbol->string)
+       (map seat-id)
+       (sort _ <)))
+
+(define (missing-seat sorted-seat-ids)
+  (for/first ([t sorted-seat-ids]
+              [n (in-naturals (first sorted-seat-ids))]
+              #:unless (equal? t n))
+    n))
+
+;; The answers
+(printf "Day 04 - star 1: ~a\n" (last sorted-seat-ids))
+(printf "Day 04 - star 2: ~a\n" (missing-seat sorted-seat-ids))
     
 
