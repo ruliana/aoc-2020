@@ -7,20 +7,24 @@
 (module+ test
   (require rackunit))
 
+(define (in-windows seq n)
+  (for/sequence ([i (range 0 (- (length seq) n))]
+                 [j (range n (length seq))])
+    (subsequence seq i j)))
 
-(define (find-combination n-elements success? seq)
+
+(define (find-combination success? n-elements seq)
   (for/first ([e (in-combinations (sequence->list seq) n-elements)]
               #:when (success? e))
     e))
 
 (define (find-inconsistency seq #:previous [previous 25])
-  (for/first ([i (range 0 (- (length seq) previous))]
-              [j (range previous (length seq))]
-              #:unless (find-combination
-                        2
-                        (λ~> sum (equal? (nth seq j)))
-                        (subsequence seq i j)))
-    (nth seq j)))
+  (define (sum-equal-pos? i)
+    (λ~> sum (equal? (nth seq i))))
+  (for/first ([w (in-windows seq previous)]
+              [i (in-naturals previous)]
+              #:unless (find-combination (sum-equal-pos? i) 2 w))
+    (nth seq i)))
 
 
 (module+ test
