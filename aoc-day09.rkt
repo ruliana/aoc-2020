@@ -33,10 +33,9 @@
 (define (find-consistent-sum seq #:previous [previous 25])
   (define inconsistent-pos (find-inconsistent-pos seq previous))
   (define inconsistent-val (nth seq inconsistent-pos))
-  (define (in-moving-window n)
-    (~>> seq (take (add1 inconsistent-pos)) (in-windows n)))
+  (define working-window (take (add1 inconsistent-pos) seq))
   (for*/first ([n (in-range 2 (add1 inconsistent-pos))]
-               [w (in-moving-window n)]
+               [w (in-windows n working-window)]
                #:when (equal? inconsistent-val (apply + w)))
     (+ (find-min w)
        (find-max w))))
