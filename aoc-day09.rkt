@@ -7,7 +7,7 @@
 (module+ test
   (require rackunit))
 
-(define (in-windows seq n)
+(define (in-windows n seq)
   (for/sequence ([i (range 0 (- (length seq) n))]
                  [j (range n (length seq))])
     (subsequence seq i j)))
@@ -18,13 +18,28 @@
               #:when (success? e))
     e))
 
-(define (find-inconsistency seq #:previous [previous 25])
-  (define (sum-equal-pos? i)
-    (λ~> sum (equal? (nth seq i))))
-  (for/first ([w (in-windows seq previous)]
+(define (find-inconsistent-pos seq previous)
+  (define (sum-equal-pos? i) (λ~>> (apply +) (equal? (nth seq i))))
+  (for/first ([w (in-windows previous seq)]
               [i (in-naturals previous)]
               #:unless (find-combination (sum-equal-pos? i) 2 w))
-    (nth seq i)))
+    i))
+
+(define (find-inconsistency seq #:previous [previous 25])
+  (~>> (find-inconsistent-pos seq previous)
+       (nth seq)))
+
+
+(define (find-consistent-sum seq #:previous [previous 25])
+  (define inconsistent-pos (find-inconsistent-pos seq previous))
+  (define inconsistent-val (nth seq inconsistent-pos))
+  (define (in-moving-window n)
+    (~>> seq (take (add1 inconsistent-pos)) (in-windows n)))
+  (for*/first ([n (in-range 2 (add1 inconsistent-pos))]
+               [w (in-moving-window n)]
+               #:when (equal? inconsistent-val (apply + w)))
+    (+ (find-min w)
+       (find-max w))))
 
 
 (module+ test
@@ -49,11 +64,16 @@
       277
       309
       576))
-  (find-inconsistency test-sequence #:previous 5))
+  (check-equal? (find-inconsistency test-sequence #:previous 5) 127)
+  (check-equal? (find-consistent-sum test-sequence #:previous 5) 62))
 
 
-(~> "./aoc-day09.input"
-    file->list
-    list->vector
-    vector->immutable-vector
-    (find-inconsistency #:previous 25))
+(define (answer strategy)
+  (~> "./aoc-day09.input"
+      file->list
+      list->vector
+      vector->immutable-vector
+      strategy))
+
+(printf "Day 09 - star 1: ~a\n" (answer find-inconsistency))
+(printf "Day 09 - star 2: ~a\n" (answer find-consistent-sum))
