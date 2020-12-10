@@ -111,16 +111,11 @@
 #lang racket
 (require threading
          racket/file
-         math/base
-         data/collection)
+         data/collection
+         "utils.rkt")
 
 (module+ test
   (require rackunit))
-
-(define (in-windows n seq)
-  (for/sequence ([i (in-range 0 (- (length seq) n))]
-                 [j (in-range n (length seq))])
-    (subsequence seq i j)))
 
 (define (find-combination success? n-elements seq)
   (for/first ([e (in-combinations (sequence->list seq) n-elements)]
@@ -128,7 +123,7 @@
     e))
 
 (define (find-inconsistent-pos seq previous)
-  (define (sum-equal-pos? i) (λ~>> (apply +) (equal? (nth seq i))))
+  (define (sum-equal-pos? i) (λ~>> sum (equal? (nth seq i))))
   (for/first ([w (in-windows previous seq)]
               [i (in-naturals previous)]
               #:unless (find-combination (sum-equal-pos? i) 2 w))
@@ -144,7 +139,7 @@
   (define working-window (take (add1 inconsistent-pos) seq))
   (for*/first ([n (in-range 2 (add1 inconsistent-pos))]
                [w (in-windows n working-window)]
-               #:when (equal? inconsistent-val (apply + w)))
+               #:when (equal? inconsistent-val (sum w)))
     (+ (find-min w)
        (find-max w))))
 
