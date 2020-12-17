@@ -1,25 +1,48 @@
 #lang racket
 (require threading
          racket/file
+         math/number-theory
          data/collection
          "utils.rkt")
 
 (module+ test
   (require rackunit))
 
-(define (difference-in-jolts-1-3 seq)
-  (define (diff ab) (- (second ab) (first ab)))
+; Append first and last, then sort
+(define (prepare-adapters seq)
   (define new-seq (extend seq (list 0 (+ 3 (maximum seq)))))
-  (define sorted-seq (sort new-seq <))
-  (define ones
-    (sequence-count (λ (w) (one? (diff w)))
-                    (in-windows 2 sorted-seq)))
-  (define threes
-    (sequence-count (λ (w) (three? (diff w)))
-                    (in-windows 2 sorted-seq)))
-  (* ones threes))
+  (sort new-seq <))
+
+(define (diff ab) (- (second ab) (first ab)))
+
+(define (diffs seq)
+  (define sorted-seq (prepare-adapters seq))
+  (for/list ([w (in-windows 2 sorted-seq)])
+    (diff w)))
 
 
+(define (difference-in-jolts-1-3 seq)
+  (define differences (diffs seq))
+  (* (count one? differences)
+     (count three? differences)))
+
+(define (jolt-combinations seq)
+  ;; Probabilities are:
+  ;; All combinations possible for removing one element
+  ;; Minus the probability of 3 sequential removals
+  ;; 2^n - 2^(n-3)
+  (define/match (jolt-combos n)
+    [(1) 2] ;; One element between 2. It can be there or not.
+    [(2) 4] ;; Two elements at 1 distance. We have 4 ways.
+    [(n) (- (expt 2 n) ;; More elements
+            (expt 2 (- n 3)))])
+  (~>> (diffs seq)        ;; Differences in sequences
+       (in-groups one?)   ;; Consecutives ones
+       (map length)       ;; Size of each groups
+       (map sub1)         ;; Actual number or "free" slots
+       (filter positive?) ;; No "free" slots, no calc
+       (map jolt-combos)  ;; Combinations for each group
+       prod))             ;; Multiply combinations
 
 (module+ test
   (define test-adapters-short
@@ -67,8 +90,15 @@
       10
       3))
   (check-equal? (difference-in-jolts-1-3 test-adapters-short) 35)
-  (check-equal? (difference-in-jolts-1-3 test-adapters-large) 220))
+  (check-equal? (difference-in-jolts-1-3 test-adapters-large) 220)
+  (check-equal? (jolt-combinations test-adapters-short) 8)
+  (check-equal? (jolt-combinations test-adapters-large) 19208))
 
-(~> "./aoc-day10.input"
-    file->list
-    difference-in-jolts-1-3)
+
+(define (answer strategy)
+  (~> "./aoc-day10.input"
+      file->list
+      strategy))
+
+(printf "Day 10 - star 1: ~a\n" (answer difference-in-jolts-1-3))
+(printf "Day 10 - star 2: ~a\n" (answer jolt-combinations))
