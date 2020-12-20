@@ -2,7 +2,8 @@
 #lang racket
 (require threading
          racket/generator
-         data/collection)
+         data/collection
+         math/array)
 
 (provide (all-defined-out))
 
@@ -56,3 +57,4 @@
   (for/sequence ([i (in-range 0 (- size n))]
                  [j (in-range n size)])
     (subsequence seq i j)))
+
