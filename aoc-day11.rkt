@@ -61,7 +61,7 @@ L.LLLLL.LL"))
   (define occupy (array 1.0))
   (define leave (array 0.0))
   (λ ([state state0])
-    (let* ([neighbors (array-convolve state kernel)]
+    (let* ([neighbors (array-convolve (array-surround state) kernel)]
            [spacious? (array= neighbors (array 0.0))]
            [crowded?  (array>= neighbors (array 4.0))]
            [temp-state (array-if spacious?

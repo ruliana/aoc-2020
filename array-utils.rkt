@@ -31,25 +31,50 @@
 
 (: array-convolve (-> (Array Float) (Array Float) (Array Float)))
 (define (array-convolve arr kernel)
-  (define shape (array-shape arr))
-  (define padded-array (array-surround arr))
+  (define arr-shape (vector->array (array-shape arr)))
+  (define kernel-shape (vector->array (array-shape kernel)))
+  (define final-shape (array->vector (array- arr-shape kernel-shape (array -1))))
   (for/array:
-      #:shape shape
-      ([ij : Indexes (in-array-indexes shape)]) : Float
-    (match-let* ([(vector i j) (vector-map add1 ij)]
-                 [north (sub1 i)]
-                 [south (+ 2 i)]
-                 [west (sub1 j)]
-                 [east (+ 2 j)]
-                 [slice (array-slice-ref padded-array
-                                         (list (:: north south) (:: west east)))])
-      (array-all-sum (array* slice kernel)))))
+      #:shape final-shape
+      ([top-left : Indexes (in-array-indexes final-shape)]) : Float
+      (match-let* ([bottom-right (array+ (vector->array top-left) kernel-shape)]
+                   [slice-ix (map (λ (x y) (:: x y))
+                                  (vector->list top-left)
+                                  (array->list bottom-right))]
+                   [slice (array-slice-ref arr slice-ix)])
+        (array-all-sum (array* slice kernel)))))
 
 (module+ test
+  (check-true (equal?
+               (array-convolve (array #[2.0])
+                               (array #[3.0]))
+               (array #[6.0])))
+  (check-true (equal?
+               (array-convolve (array #[2.0 3.0])
+                               (array #[3.0]))
+               (array #[6.0 9.0])))
   (check-true (equal?
                (array-convolve (array #[#[1.0 2.0 3.0]
                                         #[4.0 5.0 6.0]
                                         #[7.0 8.0 9.0]])
+                               (array #[#[1.0 0.0]
+                                        #[0.0 1.0]]))
+               (array #[#[ 6.0  8.0]
+                        #[12.0 14.0]])))
+  (check-true (equal?
+               (array-convolve (array-surround (array #[#[1.0 2.0 3.0]
+                                                        #[4.0 5.0 6.0]
+                                                        #[7.0 8.0 9.0]]))
+                               (array #[#[1.0 1.0 1.0]
+                                        #[1.0 0.0 1.0]
+                                        #[1.0 1.0 1.0]]))
+               (array #[#[11.0 19.0 13.0]
+                        #[23.0 40.0 27.0]
+                        #[17.0 31.0 19.0]])))
+  (check-true (equal?
+               (array-convolve (array-surround (array #[#[1.0 2.0 3.0]
+                                                        #[4.0 5.0 6.0]
+                                                        #[7.0 8.0 9.0]]))
                                (array #[#[-1.0 -2.0 -1.0]
                                         #[ 0.0  0.0  0.0]
                                         #[ 1.0  2.0  1.0]]))
