@@ -77,6 +77,7 @@
 ;; OLOOOOOOLO
 ;; O.LLOOOL.L
 ;; O.OLOOO.OO
+
 ;; O.OL.LO.OO
 ;; OLLLOLL.LO
 ;; L.L.L..O..
@@ -87,6 +88,7 @@
 ;; OLOLLLLOLO
 ;; O.LLLLLL.L
 ;; O.OLOLO.OO
+
 ;; O.OL.LO.OO
 ;; OLLLOLL.LO
 ;; L.O.L..O..
@@ -234,10 +236,10 @@
 
 #lang racket
 (require threading
-         srfi/13
+         (only-in srfi/13 string-count)
          racket/file
-         "array-utils.rkt"
          syntax/parse/define
+         "utils.rkt"
          racket/trace)
 
 ;; -- Things I'm testing (a.k.a. support code)
@@ -253,28 +255,6 @@
   (with-context x
     [plus]
     (check-equal? (plus 2) 3)))
-
-(define (join sep . strs)
-  (let loop ([rslt #f]
-             [args strs])
-    (match (list rslt args)
-      [(list #f (list)) ""]
-      [(list rslt (list)) rslt]
-      [(list #f (list (? string? str) rest ...))
-       (loop str rest)]
-      [(list #f (list (? list? lst) rest ...))
-       (loop (apply join sep lst) rest)]
-      [(list rslt (list (? string? str) rest ...))
-       (loop (string-append rslt sep str) rest)]
-      [(list rslt (list (? list? lst) rest ...))
-       (loop (string-append rslt sep (apply join sep lst)) rest)])))
-
-(module+ test
-  (check-equal? (join "-") "")
-  (check-equal? (join "-" "ab") "ab")
-  (check-equal? (join "-" "ab" "cd") "ab-cd")
-  (check-equal? (join "-" (list "ab" "cd")) "ab-cd")
-  (check-equal? (join "-" (list "ab" "cd") "de" "fg" (list "hi")) "ab-cd-de-fg-hi"))
 
 
 ;; -- Actual code
@@ -314,100 +294,146 @@ O.LLLLO.OO
 OLLLLLLLLO
 O.LLLLLL.L
 O.OLLLL.OO")
+  (define step-5
+    "O.OL.LO.OO
+OLLLOLL.LO
+L.O.L..O..
+OLOO.OO.LO
+O.OL.LL.LL
+O.OLOLO.OO
+..L.L.....
+OLOLOOLOLO
+O.LLLLLL.L
+O.OLOLO.OO")
   (check-equal? (step step-0) step-1)
   (check-equal? (step step-1) step-2))
-
-
-(define (row-count string-matrix)
-  (~> string-matrix
-      (string-count #\newline)
-      add1))
-
-(module+ test
-  (check-equal? (row-count "") 1)
-  (check-equal? (row-count "abc") 1)
-  (check-equal? (row-count "abc\n") 2)
-  (check-equal? (row-count "abc\ndef") 2)
-  (check-equal? (row-count "abc\ndef\ng") 3))
-
-(define (col-count string-matrix)
-  (if (zero? (string-length string-matrix))
-      0
-      (~> string-matrix
-          (string-split "\n" #:trim? #f)
-          (map string-length _)
-          (apply min _))))
-
-(module+ test
-  (check-equal? (col-count "") 0)
-  (check-equal? (col-count "ab") 2)
-  (check-equal? (col-count "abc\n") 0)
-  (check-equal? (col-count "abc\nd") 1)
-  (check-equal? (col-count "abc\ndefg") 3)
-  (check-equal? (col-count "abc\ndef\nghi") 3))
-
-(define (ref string-matrix row col)
-  (let ([cols (col-count string-matrix)])
-      (string-ref string-matrix (+ col row (* row cols)))))
 
 (define floor #\.)
 (define vacant #\L)
 (define occupied #\O)
 
-(define (floor? string-matrix row col) (equal? floor (ref string-matrix row col)))
-(define (vacant? string-matrix row col) (equal? vacant (ref string-matrix row col)))
-(define (occupied? string-matrix row col) (equal? occupied (ref string-matrix row col)))
+(define (floor? value) (equal? floor value))
+(define (vacant? value) (equal? vacant value))
+(define (occupied? value) (equal? occupied value))
+
+(define (string-row-count str-matrix)
+  (~> str-matrix
+      (string-count #\newline)
+      add1))
 
 (module+ test
-  (define string-matrix "abc\ndef\nghi")
-  (check-equal? (ref string-matrix 0 0) #\a)
-  (check-equal? (ref string-matrix 0 2) #\c)
-  (check-equal? (ref string-matrix 1 0) #\d)
-  (check-equal? (ref string-matrix 1 1) #\e)
-  (check-equal? (ref string-matrix 2 0) #\g)
-  (check-equal? (ref string-matrix 2 2) #\i))
+  (check-equal? (string-row-count "") 1)
+  (check-equal? (string-row-count "abc") 1)
+  (check-equal? (string-row-count "abc\n") 2)
+  (check-equal? (string-row-count "abc\ndef") 2)
+  (check-equal? (string-row-count "abc\ndef\ng") 3))
 
-(define (neighbors-count string-matrix row col)
+(define (string-col-count str-matrix)
+  (if (zero? (string-length str-matrix))
+      0
+      (~> str-matrix
+          (string-split "\n" #:trim? #f)
+          (map string-length _)
+          (apply min _))))
+
+(module+ test
+  (check-equal? (string-col-count "") 0)
+  (check-equal? (string-col-count "ab") 2)
+  (check-equal? (string-col-count "abc\n") 0)
+  (check-equal? (string-col-count "abc\nd") 1)
+  (check-equal? (string-col-count "abc\ndefg") 3)
+  (check-equal? (string-col-count "abc\ndef\nghi") 3))
+
+(struct string-matrix (content rows cols) #:transparent)
+
+(define (make-string-matrix original)
+  (string-matrix original
+                 (string-row-count original)
+                 (string-col-count original)))
+
+(module+ test
+  (check-equal? (string-matrix-rows (make-string-matrix step-0)) 10)
+  (check-equal? (string-matrix-cols (make-string-matrix step-0)) 10))
+
+(define col-count string-matrix-cols)
+(define row-count string-matrix-rows)
+
+(define (ref str-matrix row col)
+  (let ([cols (col-count str-matrix)])
+    (string-ref
+     (string-matrix-content str-matrix)
+     (+ col row (* row cols)))))
+
+(module+ test
+  (define str-matrix (make-string-matrix "abc\ndef\nghi"))
+  (check-equal? (ref str-matrix 0 0) #\a)
+  (check-equal? (ref str-matrix 0 2) #\c)
+  (check-equal? (ref str-matrix 1 0) #\d)
+  (check-equal? (ref str-matrix 1 1) #\e)
+  (check-equal? (ref str-matrix 2 0) #\g)
+  (check-equal? (ref str-matrix 2 2) #\i))
+
+(define (neighbors-count str-matrix row col)
   (define row-min (max 0 (sub1 row)))
   (define col-min (max 0 (sub1 col)))
-  (define row-max (min (+ 2 row) (row-count string-matrix)))
-  (define col-max (min (+ 2 col) (col-count string-matrix)))
+  (define row-max (min (+ 2 row) (row-count str-matrix)))
+  (define col-max (min (+ 2 col) (col-count str-matrix)))
   (for*/sum ([c (in-range col-min col-max)]
              [r (in-range row-min row-max)]
-             #:when (occupied? string-matrix r c)
+             #:when (occupied? (ref str-matrix r c))
              #:unless (and (= r row) (= c col)))
     1))
 
 (module+ test
-  (check-equal? (neighbors-count "" 0 0) 0)
-  (check-equal? (neighbors-count "O" 0 0) 0)
-  (check-equal? (neighbors-count "OO" 0 0) 1)
-  (check-equal? (neighbors-count "...\n.O.\n..." 1 1) 0)
-  (check-equal? (neighbors-count "...\n.O.\n..." 0 0) 1)
-  (check-equal? (neighbors-count "...\n.O.\n..." 2 2) 1)
-  (check-equal? (neighbors-count "OOO\nOOO\nOOO" 1 1) 8)
-  (check-equal? (neighbors-count "OOO\nOOO\nOOO" 0 2) 3)
-  (check-equal? (neighbors-count "OOO\nOOO\nOOO" 2 0) 3)
-  (check-equal? (neighbors-count "OLO\nOLO\nOLO" 1 1) 6))
+  (check-equal? (neighbors-count (make-string-matrix "") 0 0) 0)
+  (check-equal? (neighbors-count (make-string-matrix "O") 0 0) 0)
+  (check-equal? (neighbors-count (make-string-matrix "OO") 0 0) 1)
+  (check-equal? (neighbors-count (make-string-matrix "...\n.O.\n...") 1 1) 0)
+  (check-equal? (neighbors-count (make-string-matrix "...\n.O.\n...") 0 0) 1)
+  (check-equal? (neighbors-count (make-string-matrix "...\n.O.\n...") 2 2) 1)
+  (check-equal? (neighbors-count (make-string-matrix "OOO\nOOO\nOOO") 1 1) 8)
+  (check-equal? (neighbors-count (make-string-matrix "OOO\nOOO\nOOO") 0 2) 3)
+  (check-equal? (neighbors-count (make-string-matrix "OOO\nOOO\nOOO") 2 0) 3)
+  (check-equal? (neighbors-count (make-string-matrix "OLO\nOLO\nOLO") 1 1) 6))
 
+
+(define-syntax-parse-rule (for-each-cell (str-matrix:expr row:id col:id) body ...+)
+  (~>>
+    (for/list ([row (in-range (row-count str-matrix))])
+      (for/list ([col (in-range (col-count str-matrix))])
+        body ...))
+    (map list->string)
+    (join "\n")))
 
 (define (step current-map)
+  (define str-matrix (make-string-matrix current-map))
+  (for-each-cell
+   [str-matrix row col]
+   (let ([value (ref str-matrix row col)]
+         [neighbors (neighbors-count str-matrix row col)])
+        (cond
+          [(floor? value) floor]
+          [(and (vacant? value) (zero? neighbors))
+           occupied]
+          [(and (occupied? value) (<= 4 neighbors))
+           vacant]
+          [(occupied? value) occupied]
+          [else value]))))
 
-  (define-syntax-parse-rule (for-each-cell (string-matrix:expr row:id col:id) body ...+)
-    (~>>
-     (for/list ([row (in-range (row-count current-map))])
-       (for/list ([col (in-range (col-count current-map))])
-         body ...))
-     (map list->string)
-     (join "\n")))
+(define (until-stabilize initial)
+  (let loop ([current initial]
+             [next (step initial)])
+    (if (equal? current next)
+        current
+        (loop next (step next)))))
 
-  (with-context current-map
-    [floor? vacant? occupied? neighbors-count]
-    (for-each-cell
-     [string-matrix row col]
-     (cond
-       [(floor? row col) floor]
-       [(and (occupied? row col)
-             (<= 4 (neighbors-count row col)))
-        vacant]
-       [else occupied]))))
+(module+ test
+  (check-equal? (until-stabilize step-0) step-5)
+  (check-equal? (~>> (until-stabilize step-0) (sequence-count occupied?)) 37))
+
+(displayln
+ (~>> "./aoc-day11.input"
+      file->string
+      string-trim
+      until-stabilize
+      (sequence-count occupied?)))

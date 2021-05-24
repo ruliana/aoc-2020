@@ -56,5 +56,28 @@
   (define size (add1 (length seq)))
   (for/sequence ([i (in-range 0 (- size n))]
                  [j (in-range n size)])
-    (subsequence seq i j)))
+     (subsequence seq i j)))
 
+;; Joins strings or list of strings using separator.
+;;
+(define (join sep . strs)
+  (let loop ([rslt #f]
+             [args strs])
+    (match (list rslt args)
+      [(list #f (list)) ""]
+      [(list rslt (list)) rslt]
+      [(list #f (list (? string? str) rest ...))
+       (loop str rest)]
+      [(list #f (list (? list? lst) rest ...))
+       (loop (apply join sep lst) rest)]
+      [(list rslt (list (? string? str) rest ...))
+       (loop (string-append rslt sep str) rest)]
+      [(list rslt (list (? list? lst) rest ...))
+       (loop (string-append rslt sep (apply join sep lst)) rest)])))
+
+(module+ test
+  (check-equal? (join "-") "")
+  (check-equal? (join "-" "ab") "ab")
+  (check-equal? (join "-" "ab" "cd") "ab-cd")
+  (check-equal? (join "-" (list "ab" "cd")) "ab-cd")
+  (check-equal? (join "-" (list "ab" "cd") "de" "fg" (list "hi")) "ab-cd-de-fg-hi"))
