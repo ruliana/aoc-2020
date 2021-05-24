@@ -237,7 +237,8 @@
          srfi/13
          racket/file
          "array-utils.rkt"
-         syntax/parse/define)
+         syntax/parse/define
+         racket/trace)
 
 ;; -- Things I'm testing (a.k.a. support code)
 
@@ -252,6 +253,28 @@
   (with-context x
     [plus]
     (check-equal? (plus 2) 3)))
+
+(define (join sep . strs)
+  (let loop ([rslt #f]
+             [args strs])
+    (match (list rslt args)
+      [(list #f (list)) ""]
+      [(list rslt (list)) rslt]
+      [(list #f (list (? string? str) rest ...))
+       (loop str rest)]
+      [(list #f (list (? list? lst) rest ...))
+       (loop (apply join sep lst) rest)]
+      [(list rslt (list (? string? str) rest ...))
+       (loop (string-append rslt sep str) rest)]
+      [(list rslt (list (? list? lst) rest ...))
+       (loop (string-append rslt sep (apply join sep lst)) rest)])))
+
+(module+ test
+  (check-equal? (join "-") "")
+  (check-equal? (join "-" "ab") "ab")
+  (check-equal? (join "-" "ab" "cd") "ab-cd")
+  (check-equal? (join "-" (list "ab" "cd")) "ab-cd")
+  (check-equal? (join "-" (list "ab" "cd") "de" "fg" (list "hi")) "ab-cd-de-fg-hi"))
 
 
 ;; -- Actual code
@@ -291,8 +314,8 @@ O.LLLLO.OO
 OLLLLLLLLO
 O.LLLLLL.L
 O.OLLLL.OO")
-  (check-equal? (step step-0) step-1))
-  ;; (check-equal? (step step-1) step-2))
+  (check-equal? (step step-0) step-1)
+  (check-equal? (step step-1) step-2))
 
 
 (define (row-count string-matrix)
@@ -369,22 +392,22 @@ O.OLLLL.OO")
 
 
 (define (step current-map)
+
+  (define-syntax-parse-rule (for-each-cell (string-matrix:expr row:id col:id) body ...+)
+    (~>>
+     (for/list ([row (in-range (row-count current-map))])
+       (for/list ([col (in-range (col-count current-map))])
+         body ...))
+     (map list->string)
+     (join "\n")))
+
   (with-context current-map
     [floor? vacant? occupied? neighbors-count]
-    (string-trim
-     (string-append*
-      (for/list ([row (in-range (row-count current-map))])
-        (string-append
-         (list->string
-          (for/list ([col (in-range (col-count current-map))])
-            (cond
-              [(floor? row col) floor]
-              [(and (vacant? row col)
-                    (zero? (neighbors-count row col))
-                    occupied)]
-              [(and (occupied? row col)
-                    (<= 4 (neighbors-count row col))
-                    vacant)]
-              [(occupied? row col
-                          occupied)])))
-         "\n"))))))
+    (for-each-cell
+     [string-matrix row col]
+     (cond
+       [(floor? row col) floor]
+       [(and (occupied? row col)
+             (<= 4 (neighbors-count row col)))
+        vacant]
+       [else occupied]))))
