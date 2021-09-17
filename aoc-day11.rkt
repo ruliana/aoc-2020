@@ -238,26 +238,10 @@
 (require threading
          (only-in srfi/13 string-count)
          racket/file
+         data/collection
          syntax/parse/define
          "utils.rkt"
          racket/trace)
-
-;; -- Things I'm testing (a.k.a. support code)
-
-(define-syntax-parse-rule (with-context name:id (function:expr ...) body ...+)
-  (let ([function (λ args (apply function name args))] ...)
-    body ...))
-
-(module+ test
-  (require rackunit)
-  (define x 1)
-  (define (plus a b) (+ a b))
-  (with-context x
-    [plus]
-    (check-equal? (plus 2) 3)))
-
-
-;; -- Actual code
 
 (module+ test
   (require rackunit)
@@ -396,8 +380,58 @@ O.OLOLO.OO")
   (check-equal? (neighbors-count (make-string-matrix "OOO\nOOO\nOOO") 2 0) 3)
   (check-equal? (neighbors-count (make-string-matrix "OLO\nOLO\nOLO") 1 1) 6))
 
+(define (visible-count str-matrix row col)
+  (define (first-in-range row-range col-range)
+    (for/first ([c (in col-range)]
+                [r (in row-range)]
+                #:unless (equal? floor (ref str-matrix r c)))
+      (ref str-matrix r c)))
+  (define same-row (repeat row))
+  (define same-col (repeat col))
+  (define rows-below (range (add1 row) (row-count str-matrix)))
+  (define rows-above (range (sub1 row) -1 -1))
+  (define cols-ahead (range (add1 col) (col-count str-matrix)))
+  (define cols-behind (range (sub1 col) -1 -1))
+  (define visible
+         (list
+          (first-in-range same-row cols-ahead)
+          (first-in-range same-row cols-behind)
+          (first-in-range rows-below same-col)
+          (first-in-range rows-above same-col)
+          (first-in-range rows-below cols-ahead)
+          (first-in-range rows-above cols-ahead)
+          (first-in-range rows-below cols-behind)
+          (first-in-range rows-above cols-behind)))
+  (count occupied? visible))
 
-(define-syntax-parse-rule (for-each-cell (str-matrix:expr row:id col:id) body ...+)
+(module+ test
+  (define eight-visible
+    ".......O.
+...O.....
+.O.......
+.........
+..OL....O
+....O....
+.........
+O........
+...O..... ")
+  (define empty-visible
+    ".............
+.L.L.O.O.O.O.
+.............")
+  (define none-visible
+    ".OO.OO.
+O.O.O.O
+OO...OO
+...L...
+OO...OO
+O.O.O.O
+.OO.OO.")
+  (check-equal? (visible-count (make-string-matrix eight-visible) 4 3) 8)
+  (check-equal? (visible-count (make-string-matrix empty-visible) 1 1) 0)
+  (check-equal? (visible-count (make-string-matrix none-visible) 3 3) 0))
+
+(define-syntax-parse-rule (for/string-matrix (str-matrix:expr row:id col:id) body ...+)
   (~>>
     (for/list ([row (in-range (row-count str-matrix))])
       (for/list ([col (in-range (col-count str-matrix))])
@@ -407,18 +441,18 @@ O.OLOLO.OO")
 
 (define (step current-map)
   (define str-matrix (make-string-matrix current-map))
-  (for-each-cell
+  (for/string-matrix
    [str-matrix row col]
    (let ([value (ref str-matrix row col)]
          [neighbors (neighbors-count str-matrix row col)])
-        (cond
-          [(floor? value) floor]
-          [(and (vacant? value) (zero? neighbors))
-           occupied]
-          [(and (occupied? value) (<= 4 neighbors))
-           vacant]
-          [(occupied? value) occupied]
-          [else value]))))
+     (cond
+       [(floor? value) floor]
+       [(and (vacant? value) (zero? neighbors))
+        occupied]
+       [(and (occupied? value) (<= 4 neighbors))
+        vacant]
+       [(occupied? value) occupied]
+       [else value]))))
 
 (define (until-stabilize initial)
   (let loop ([current initial]
@@ -431,9 +465,9 @@ O.OLOLO.OO")
   (check-equal? (until-stabilize step-0) step-5)
   (check-equal? (~>> (until-stabilize step-0) (sequence-count occupied?)) 37))
 
-(displayln
- (~>> "./aoc-day11.input"
-      file->string
-      string-trim
-      until-stabilize
-      (sequence-count occupied?)))
+;; (displayln
+;;  (~>> "./aoc-day11.input"
+;;       file->string
+;;       string-trim
+;;       until-stabilize
+;;       (sequence-count occupied?)))

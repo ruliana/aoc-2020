@@ -8,6 +8,7 @@
   (require typed/rackunit))
 
 (module+ test
+  (: arr (Array Real))
   (define arr (array #[#[1 1 1]
                        #[1 1 1]
                        #[1 1 1]])))
