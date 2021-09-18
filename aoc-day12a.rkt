@@ -89,7 +89,7 @@
 (define (read-syntax path port)
   (define src-lines (port->lines port))
   (define content (sequence->list (filter-map parse-translate src-lines)))
-  (datum->syntax #f `(module aoc-2020-day-12 "aoc-day12.rkt"
+  (datum->syntax #f `(module aoc-2020-day-12 "aoc-day12a.rkt"
                        (~> (ship 0 0 0)
                            ,@content
                            manhattan-distance))))

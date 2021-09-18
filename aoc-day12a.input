@@ -1,4 +1,5 @@
-#lang reader "aoc-day12.rkt"
+#! /usr/bin/env racket
+#lang reader "aoc-day12a.rkt"
 R90
 S1
 R90
